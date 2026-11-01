@@ -96,19 +96,19 @@ pub fn media_info(path: &str) -> Result<MediaInfo, String> {
                 let Some(std) = &tag.std else { continue };
                 // Later revisions win, which matches how players usually resolve duplicates.
                 match std {
-                    StandardTag::TrackTitle(v) => info.title = Some(v.to_string()),
-                    StandardTag::Artist(v) => info.artist = Some(v.to_string()),
-                    StandardTag::Album(v) => info.album = Some(v.to_string()),
-                    StandardTag::AlbumArtist(v) => info.album_artist = Some(v.to_string()),
-                    StandardTag::Genre(v) => info.genre = Some(v.to_string()),
+                    StandardTag::TrackTitle(v) => info.title = text(v),
+                    StandardTag::Artist(v) => info.artist = text(v),
+                    StandardTag::Album(v) => info.album = text(v),
+                    StandardTag::AlbumArtist(v) => info.album_artist = text(v),
+                    StandardTag::Genre(v) => info.genre = text(v),
                     StandardTag::RecordingDate(v) | StandardTag::ReleaseDate(v) => {
-                        info.year.get_or_insert_with(|| v.to_string());
+                        info.year.get_or_insert_with(|| v.trim().to_string());
                     }
                     StandardTag::RecordingYear(y) | StandardTag::ReleaseYear(y) => {
                         info.year.get_or_insert_with(|| y.to_string());
                     }
                     StandardTag::Bpm(v) => info.bpm = Some(*v),
-                    StandardTag::InitialKey(v) => info.key = Some(v.to_string()),
+                    StandardTag::InitialKey(v) => info.key = text(v),
                     _ => {}
                 }
             }
@@ -127,10 +127,71 @@ pub fn cover_art(path: &str) -> Result<Option<CoverArt>, String> {
     }))
 }
 
+/// Cleans up a tag value: trims the padding of fixed-width fields (ID3v1) and repairs legacy
+/// Japanese text. ID3v1 and many old ID3v2 tags hold Shift_JIS bytes in fields that are
+/// declared (or assumed) Latin-1, which decode as mojibake. Such a string maps back to its
+/// original bytes one char per byte, so it is re-decoded as Shift_JIS when that yields valid
+/// text containing Japanese characters.
+fn text(value: &str) -> Option<String> {
+    let trimmed = value.trim_matches(|c: char| c.is_whitespace() || c == '\0');
+    if trimmed.is_empty() {
+        return None;
+    }
+    let latin1 = trimmed.chars().all(|c| (c as u32) <= 0xFF);
+    let high = trimmed.chars().any(|c| (c as u32) >= 0x80);
+    if latin1 && high {
+        let bytes: Vec<u8> = trimmed.chars().map(|c| c as u8).collect();
+        if let Some(decoded) =
+            encoding_rs::SHIFT_JIS.decode_without_bom_handling_and_without_replacement(&bytes)
+        {
+            if decoded.chars().any(is_japanese) {
+                return Some(decoded.trim().to_string());
+            }
+        }
+    }
+    Some(trimmed.to_string())
+}
+
+fn is_japanese(c: char) -> bool {
+    matches!(c as u32,
+        0x3040..=0x30FF       // hiragana, katakana
+        | 0x3400..=0x4DBF     // CJK extension A
+        | 0x4E00..=0x9FFF     // CJK unified ideographs
+        | 0xFF66..=0xFF9F     // half-width katakana
+    )
+}
+
 /// Front cover if tagged as such, otherwise the first picture.
 fn pick_cover(revs: &[MetadataRevision]) -> Option<&Visual> {
     let visuals = || revs.iter().rev().flat_map(|r| r.media.visuals.iter());
     visuals()
         .find(|v| v.usage == Some(StandardVisualKey::FrontCover))
         .or_else(|| visuals().next())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::text;
+
+    /// Shift_JIS bytes read as Latin-1, the way an ID3v1 title arrives.
+    fn as_latin1(bytes: &[u8]) -> String {
+        bytes.iter().map(|&b| b as char).collect()
+    }
+
+    #[test]
+    fn repairs_shift_jis_read_as_latin1() {
+        let (sjis, _, _) = encoding_rs::SHIFT_JIS.encode("ダイナマイトが5万トン");
+        let padded = format!("{}         ", as_latin1(&sjis));
+        assert_eq!(text(&padded).as_deref(), Some("ダイナマイトが5万トン"));
+    }
+
+    #[test]
+    fn keeps_real_latin1_and_ascii() {
+        assert_eq!(text("Beyoncé").as_deref(), Some("Beyoncé"));
+        assert_eq!(
+            text("PURE SONG and PICTURES        ").as_deref(),
+            Some("PURE SONG and PICTURES")
+        );
+        assert_eq!(text("   "), None);
+    }
 }
