@@ -26,8 +26,19 @@ export interface WaveformData {
   brightness: number;
   /** Estimated sections, covering the whole track. */
   sections: Section[];
-  /** Start (seconds) of the likely chorus / climax. */
+  /** Start (seconds) of the likely chorus / climax (the first chorus when choruses exist). */
   highlight: number | null;
+  /** Every chorus occurrence found by harmonic repetition; empty when none. */
+  choruses: Span[];
+  /** Stretches with lead vocals (centre-panned voice band); empty for mono or unclear. */
+  vocals: Span[];
+  /** Where the singing starts, if detected. */
+  vocalStart: number | null;
+}
+
+export interface Span {
+  start: number;
+  end: number;
 }
 
 export interface Section {

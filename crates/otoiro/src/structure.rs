@@ -183,3 +183,27 @@ fn moving_average(v: &[f64], window: usize) -> Vec<f64> {
         })
         .collect()
 }
+
+/// Adds section boundaries at `cuts` (e.g. chorus starts), skipping ones within a few seconds
+/// of an existing boundary. Both halves keep the energy of the section they came from.
+pub(crate) fn split_at(mut sections: Vec<Section>, cuts: &[f64]) -> Vec<Section> {
+    const MIN_DISTANCE: f64 = 3.0;
+    for &cut in cuts {
+        let near = sections
+            .iter()
+            .any(|s| (s.start - cut).abs() < MIN_DISTANCE || (s.end - cut).abs() < MIN_DISTANCE);
+        if near {
+            continue;
+        }
+        if let Some(i) = sections.iter().position(|s| s.start < cut && cut < s.end) {
+            let tail = Section {
+                start: cut,
+                end: sections[i].end,
+                energy: sections[i].energy,
+            };
+            sections[i].end = cut;
+            sections.insert(i + 1, tail);
+        }
+    }
+    sections
+}

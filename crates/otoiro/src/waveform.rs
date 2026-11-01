@@ -6,6 +6,7 @@ use symphonia::core::errors::Error as SymError;
 use symphonia::core::formats::TrackType;
 
 use crate::info::open_format;
+use crate::music::{self, Downmix, Span};
 use crate::structure::{self, Section};
 
 /// Analysis resolution before reduction to the requested bucket count.
@@ -26,8 +27,17 @@ pub struct Waveform {
     /// Estimated sections (intro, verse, chorus, ...), split where the loudness contour
     /// changes for good. Always covers the whole track.
     pub sections: Vec<Section>,
-    /// Start (seconds) of the section that is most likely the chorus / climax.
+    /// Start (seconds) of the most likely chorus / climax: the first chorus when choruses
+    /// were found, otherwise the loudest section.
     pub highlight: Option<f64>,
+    /// Every occurrence of the chorus, found by harmonic repetition. Empty when the track
+    /// doesn't repeat recognisably (then `highlight` falls back to loudness).
+    pub choruses: Vec<Span>,
+    /// Stretches with lead vocals (centre-panned voice band). Empty for mono or instrumental
+    /// tracks, or when it can't be told apart.
+    pub vocals: Vec<Span>,
+    /// Where the singing starts: the first vocal stretch.
+    pub vocal_start: Option<f64>,
 }
 
 pub fn waveform(path: &str, buckets: usize) -> Result<Waveform, String> {
@@ -58,6 +68,7 @@ pub fn waveform(path: &str, buckets: usize) -> Result<Waveform, String> {
     let mut samples: Vec<f32> = Vec::new();
     let mut crossings = 0u64;
     let mut last_sign = false;
+    let mut downmix: Option<Downmix> = None;
 
     loop {
         let packet = match format.next_packet() {
@@ -74,6 +85,7 @@ pub fn waveform(path: &str, buckets: usize) -> Result<Waveform, String> {
                 if rate == 0 {
                     rate = buf.spec().rate();
                     block_frames = (rate / BLOCKS_PER_SECOND).max(1);
+                    downmix = Some(Downmix::new(rate));
                 }
                 buf.copy_to_vec_interleaved(&mut samples);
                 buf.spec().channels().count().max(1)
@@ -82,7 +94,9 @@ pub fn waveform(path: &str, buckets: usize) -> Result<Waveform, String> {
             Err(e) => return Err(e.to_string()),
         };
 
+        let downmix = downmix.as_mut().expect("set with the rate");
         for frame in samples.chunks_exact(channels) {
+            downmix.push(frame);
             let sign = frame[0] >= 0.0;
             let crossed = (sign != last_sign) as u32;
             crossings += crossed as u64;
@@ -136,8 +150,14 @@ pub fn waveform(path: &str, buckets: usize) -> Result<Waveform, String> {
     let brightness = ((crossing_hz.max(1.0) / 100.0).log2() / (4000.0f64 / 100.0).log2()).clamp(0.0, 1.0) as f32;
 
     let block_seconds = if rate > 0 { block_frames as f64 / rate as f64 } else { 0.0 };
-    let (sections, highlight) =
+    let (sections, level_highlight) =
         structure::analyze(&block_sq, &block_len, &block_zc, block_seconds, duration);
+    let content = downmix.map(|d| music::analyze(&d)).unwrap_or_default();
+    let vocal_start = content.vocals.first().map(|v| v.start);
+    let highlight = content.choruses.first().map(|c| c.start).or(level_highlight);
+    let mut cuts: Vec<f64> = content.choruses.iter().map(|c| c.start).collect();
+    cuts.extend(vocal_start);
+    let sections = structure::split_at(sections, &cuts);
 
     Ok(Waveform {
         duration,
@@ -146,5 +166,8 @@ pub fn waveform(path: &str, buckets: usize) -> Result<Waveform, String> {
         brightness,
         sections,
         highlight,
+        choruses: content.choruses,
+        vocals: content.vocals,
+        vocal_start,
     })
 }

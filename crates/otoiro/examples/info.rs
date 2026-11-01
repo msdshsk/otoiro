@@ -24,6 +24,13 @@ fn main() {
             t += 5.0;
         }
     }
+    for c in &w.choruses {
+        println!("  chorus  {:6.1}s - {:6.1}s", c.start, c.end);
+    }
+    for v in &w.vocals {
+        println!("  vocals  {:6.1}s - {:6.1}s", v.start, v.end);
+    }
+    println!("  vocal start: {:?}", w.vocal_start.map(|t| (t * 10.0).round() / 10.0));
     println!("  highlight: {:?}", w.highlight.map(|h| (h * 10.0).round() / 10.0));
     println!("waveform: {:.2}s, {} buckets, max rms {max_rms:.3}, brightness {:.2}, took {:?}", w.duration, w.peak.len(), w.brightness, t.elapsed());
 }

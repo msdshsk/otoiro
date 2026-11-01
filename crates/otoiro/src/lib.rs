@@ -10,6 +10,7 @@
 
 mod control;
 mod info;
+mod music;
 mod output;
 mod source;
 mod structure;
@@ -24,6 +25,7 @@ use serde::Serialize;
 use output::Shared;
 
 pub use info::{cover_art, media_info, CoverArt, MediaInfo};
+pub use music::Span;
 pub use structure::Section;
 pub use waveform::{waveform, Waveform};
 

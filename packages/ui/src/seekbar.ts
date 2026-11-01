@@ -4,6 +4,18 @@ import { formatTime } from "./player";
 
 const KEY_STEP = 5;
 
+export interface SeekbarMarkerLabels {
+  /** Tooltip of the ★ chorus-candidate badges. */
+  chorus: string;
+  /** Tooltip of the ♪ vocal-entry badge. */
+  vocalStart: string;
+}
+
+const DEFAULT_MARKER_LABELS: SeekbarMarkerLabels = {
+  chorus: "Chorus (estimated)",
+  vocalStart: "Vocals start (estimated)",
+};
+
 const template = document.createElement("template");
 template.innerHTML = `
 <style>
@@ -155,6 +167,32 @@ template.innerHTML = `
     transition: scale 140ms cubic-bezier(.3,1.6,.5,1);
   }
   .highlight-badge:hover { scale: 1.2; }
+  .vocal-band {
+    position: absolute;
+    bottom: 0;
+    height: 2px;
+    border-radius: 1px;
+    background: rgb(255 255 255 / 0.55);
+  }
+  .vocal-badge {
+    position: absolute;
+    bottom: -8px;
+    translate: -50% 0;
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 1px solid rgb(255 255 255 / 0.6);
+    border-radius: 50%;
+    background: rgb(20 20 28 / 0.9);
+    color: #fff;
+    font: 700 10px/1 system-ui, sans-serif;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: scale 140ms cubic-bezier(.3,1.6,.5,1);
+  }
+  .vocal-badge:hover { scale: 1.2; }
   .playhead {
     position: absolute;
     top: -4px;
@@ -189,8 +227,9 @@ template.innerHTML = `
  * - Dragging previews the target (with the offset from the current position) and seeks on
  *   release; Escape cancels.
  * - Keyboard: ←/→ ±5s, Home/End, PageUp/PageDown previous/next section.
- * - With a waveform that carries `sections`/`highlight`, section boundaries are marked and a
- *   ★ badge jumps to the highlight (chorus).
+ * - With waveform analysis, section boundaries are marked, every chorus candidate gets a ★
+ *   badge and band, and (unless `showVocals` is off) sung stretches get a line along the
+ *   bottom with a ♪ badge at the vocal entry. `markerLabels` sets the tooltips.
  *
  * Set `waveform` to switch from a thin rail to a waveform timeline (played part in the accent
  * gradient, hovered part highlighted, glowing playhead).
@@ -221,6 +260,8 @@ export class OtoSeekbar extends PlayerElement {
   #dragRatio: number | null = null;
   #pointerId: number | null = null;
   #ariaText = "";
+  #markerLabels: SeekbarMarkerLabels = DEFAULT_MARKER_LABELS;
+  #showVocals = true;
 
   constructor() {
     super();
@@ -283,9 +324,44 @@ export class OtoSeekbar extends PlayerElement {
     void this.player?.seek(prev ?? 0);
   }
 
-  /** Seeks to the estimated chorus / climax. */
+  /** Overrides marker tooltips (e.g. for localisation). */
+  set markerLabels(labels: Partial<SeekbarMarkerLabels>) {
+    this.#markerLabels = { ...DEFAULT_MARKER_LABELS, ...labels };
+    this.#renderMarks();
+  }
+
+  /** Whether to draw vocal stretches and the vocal-entry marker (default true). */
+  get showVocals(): boolean {
+    return this.#showVocals;
+  }
+
+  set showVocals(show: boolean) {
+    this.#showVocals = show;
+    this.#renderMarks();
+  }
+
+  /**
+   * Chorus candidates (seconds): every detected chorus occurrence, or the single loudness
+   * highlight when the track has no recognisable repetition.
+   */
+  get highlights(): number[] {
+    const w = this.#waveform;
+    if (!w) return [];
+    if (w.choruses.length > 0) return w.choruses.map((c) => c.start);
+    return w.highlight != null ? [w.highlight] : [];
+  }
+
+  /** Seeks to the next chorus candidate after the current position, wrapping to the first. */
   jumpToHighlight() {
-    const t = this.#waveform?.highlight;
+    const all = this.highlights;
+    if (all.length === 0) return;
+    const pos = this.player?.position() ?? 0;
+    void this.player?.seek(all.find((t) => t > pos + 1) ?? all[0]);
+  }
+
+  /** Seeks to where the singing starts, if known. */
+  jumpToVocals() {
+    const t = this.#waveform?.vocalStart;
     if (t != null) void this.player?.seek(t);
   }
 
@@ -294,34 +370,66 @@ export class OtoSeekbar extends PlayerElement {
     this.#marks.replaceChildren();
     if (!waveform || waveform.duration <= 0) return;
     const pct = (t: number) => `${(t / waveform.duration) * 100}%`;
+    const width = (a: number, b: number) => `${((b - a) / waveform.duration) * 100}%`;
+    const labels = this.#markerLabels;
+
     for (const section of waveform.sections.slice(1)) {
       const line = document.createElement("div");
       line.className = "boundary";
       line.style.left = pct(section.start);
       this.#marks.append(line);
     }
-    const highlight = waveform.highlight;
-    if (highlight == null) return;
-    const section = waveform.sections.find((s) => s.start === highlight);
-    if (section) {
+
+    if (this.#showVocals) {
+      for (const span of waveform.vocals) {
+        const bar = document.createElement("div");
+        bar.className = "vocal-band";
+        bar.style.left = pct(span.start);
+        bar.style.width = width(span.start, span.end);
+        this.#marks.append(bar);
+      }
+      if (waveform.vocalStart != null) {
+        this.#marks.append(
+          this.#badge("vocal-badge", "vocal", "♪", labels.vocalStart, pct(waveform.vocalStart), () =>
+            this.jumpToVocals(),
+          ),
+        );
+      }
+    }
+
+    const choruses: { start: number; end: number }[] =
+      waveform.choruses.length > 0
+        ? waveform.choruses
+        : waveform.sections.filter((s) => s.start === waveform.highlight);
+    for (const chorus of choruses) {
       const band = document.createElement("div");
       band.className = "highlight-band";
-      band.style.left = pct(section.start);
-      band.style.width = `${((section.end - section.start) / waveform.duration) * 100}%`;
+      band.style.left = pct(chorus.start);
+      band.style.width = width(chorus.start, chorus.end);
       this.#marks.append(band);
     }
+    for (const t of this.highlights) {
+      this.#marks.append(
+        this.#badge("highlight-badge", "highlight", "★", labels.chorus, pct(t), () => {
+          void this.player?.seek(t);
+        }),
+      );
+    }
+  }
+
+  #badge(className: string, part: string, glyph: string, title: string, left: string, onClick: () => void) {
     const badge = document.createElement("button");
-    badge.className = "highlight-badge";
-    badge.setAttribute("part", "highlight");
-    badge.textContent = "★";
-    badge.title = "Jump to highlight";
-    badge.style.left = pct(highlight);
+    badge.className = className;
+    badge.setAttribute("part", part);
+    badge.textContent = glyph;
+    badge.title = title;
+    badge.style.left = left;
     badge.addEventListener("pointerdown", (e) => e.stopPropagation());
     badge.addEventListener("click", (e) => {
       e.stopPropagation();
-      this.jumpToHighlight();
+      onClick();
     });
-    this.#marks.append(badge);
+    return badge;
   }
 
   connectedCallback() {

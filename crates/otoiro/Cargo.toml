@@ -13,4 +13,5 @@ rubato = "5"
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 log = "0.4"
+realfft = "3.5"
 encoding_rs = "0.8"

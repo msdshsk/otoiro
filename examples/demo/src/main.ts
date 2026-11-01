@@ -54,6 +54,9 @@ const highlightButton = $<HTMLButtonElement>("highlight");
 $("prev-section").addEventListener("click", () => seekbar.previousSection());
 $("next-section").addEventListener("click", () => seekbar.nextSection());
 highlightButton.addEventListener("click", () => seekbar.jumpToHighlight());
+const vocalsButton = $<HTMLButtonElement>("vocals");
+vocalsButton.addEventListener("click", () => seekbar.jumpToVocals());
+seekbar.markerLabels = { chorus: "サビ候補（推定）", vocalStart: "歌いだし（推定）" };
 
 let current = 0;
 let coverUrl: string | null = null;
@@ -116,7 +119,8 @@ async function describe(path: string) {
   if (stale()) return;
   seekbar.waveform = waveform;
   jog.sections = waveform.sections.map((s) => s.start);
-  highlightButton.disabled = waveform.highlight == null;
+  highlightButton.disabled = seekbar.highlights.length === 0;
+  vocalsButton.disabled = waveform.vocalStart == null;
 
   const hasCover = await coverTask;
   if (stale() || hasCover) return;
