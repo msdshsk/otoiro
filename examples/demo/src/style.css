@@ -120,4 +120,7 @@ body {
   font-size: 13px;
 }
 .open:hover { background: rgb(255 255 255 / 0.08); }
+.deck { display: flex; align-items: center; gap: 22px; }
+.deck-main { flex: 1; min-width: 0; display: grid; gap: 14px; }
+oto-jog { --oto-jog-size: 118px; flex: none; }
 .error { margin: 0; color: #ff8080; font-size: 12px; }

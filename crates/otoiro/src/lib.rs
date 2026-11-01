@@ -81,6 +81,7 @@ pub(crate) enum Command {
     Play,
     Pause,
     Seek(f64),
+    Scrub(f64),
     Stop,
     SetVolume(f32),
 }
@@ -131,6 +132,12 @@ impl Engine {
 
     pub fn seek(&self, seconds: f64) -> Result<(), EngineError> {
         self.send(Command::Seek(seconds.max(0.0)))
+    }
+
+    /// Jumps to `seconds` and plays a short grain there, leaving the player paused. Call it
+    /// repeatedly from a jog wheel or drag for audible scrubbing.
+    pub fn scrub(&self, seconds: f64) -> Result<(), EngineError> {
+        self.send(Command::Scrub(seconds.max(0.0)))
     }
 
     pub fn stop(&self) -> Result<(), EngineError> {

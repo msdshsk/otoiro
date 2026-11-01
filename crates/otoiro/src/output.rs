@@ -1,7 +1,7 @@
 //! Output side: the cpal stream, the sample queue it drains, and the playback clock.
 
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -9,6 +9,11 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SampleFormat, SizedSample, Stream, StreamConfig};
 
 use crate::{PlaybackState, Snapshot};
+
+/// Scrub grain envelope: a short fade in avoids a click at the jump, a longer fade out makes
+/// rapid grains read as a continuous "tape" sound rather than a series of pops.
+const GRAIN_FADE_IN: Duration = Duration::from_millis(3);
+const GRAIN_FADE_OUT: Duration = Duration::from_millis(25);
 
 /// Interleaved samples already converted to the device rate and channel count.
 pub(crate) struct Chunk {
@@ -65,6 +70,9 @@ pub(crate) struct Shared {
     clock: Mutex<Option<Clock>>,
     pub(crate) paused: AtomicBool,
     volume_bits: AtomicU32,
+    /// While paused, this many frames may still play (a scrub grain), out of `grain_total`.
+    grain_left: AtomicU64,
+    grain_total: AtomicU64,
     pub(crate) meta: Mutex<Meta>,
     pub(crate) rate: u32,
     pub(crate) channels: usize,
@@ -83,6 +91,8 @@ impl Shared {
             clock: Mutex::new(None),
             paused: AtomicBool::new(true),
             volume_bits: AtomicU32::new(0.5f32.to_bits()),
+            grain_left: AtomicU64::new(0),
+            grain_total: AtomicU64::new(0),
             meta: Mutex::new(Meta {
                 state: PlaybackState::Idle,
                 duration: None,
@@ -99,6 +109,18 @@ impl Shared {
 
     pub(crate) fn set_volume(&self, v: f32) {
         self.volume_bits.store(v.to_bits(), Ordering::Relaxed);
+    }
+
+    /// Lets `duration` worth of audio through while paused.
+    pub(crate) fn start_grain(&self, duration: Duration) {
+        let frames = (duration.as_secs_f64() * self.rate as f64) as u64;
+        self.grain_left.store(0, Ordering::Relaxed);
+        self.grain_total.store(frames, Ordering::Relaxed);
+        self.grain_left.store(frames, Ordering::Relaxed);
+    }
+
+    pub(crate) fn cancel_grain(&self) {
+        self.grain_left.store(0, Ordering::Relaxed);
     }
 
     /// Audible media position right now.
@@ -140,28 +162,50 @@ impl Shared {
         let latency = ts.playback.duration_since(ts.callback);
         let at = Instant::now();
 
-        if self.paused.load(Ordering::Relaxed) {
+        let channels = self.channels;
+        let paused = self.paused.load(Ordering::Relaxed);
+        let grain_left = self.grain_left.load(Ordering::Relaxed);
+        if paused && grain_left == 0 {
             out.fill(silence);
             return;
         }
+        // Paused with a grain pending: play only what's left of the grain.
+        let limit = if paused {
+            out.len().min(grain_left as usize * channels)
+        } else {
+            out.len()
+        };
 
         let volume = self.volume();
-        let channels = self.channels;
         let rate = self.rate as f64;
+        let grain = paused.then(|| {
+            let total = self.grain_total.load(Ordering::Relaxed);
+            let fade_in = (GRAIN_FADE_IN.as_secs_f64() * rate).max(1.0);
+            let fade_out = (GRAIN_FADE_OUT.as_secs_f64() * rate).max(1.0);
+            (total, total.saturating_sub(grain_left), fade_in, fade_out)
+        });
 
         let mut q = self.queue.lock().unwrap();
         let start = q.head_pos;
         let mut written = 0;
-        while written < out.len() {
+        while written < limit {
             let Some(chunk) = q.chunks.front_mut() else {
                 break;
             };
-            let n = (chunk.samples.len() - chunk.read).min(out.len() - written);
-            for (dst, src) in out[written..written + n]
+            let n = (chunk.samples.len() - chunk.read).min(limit - written);
+            for (i, (dst, src)) in out[written..written + n]
                 .iter_mut()
                 .zip(&chunk.samples[chunk.read..chunk.read + n])
+                .enumerate()
             {
-                *dst = T::from_sample(src * volume);
+                let gain = match grain {
+                    Some((total, done, fade_in, fade_out)) => {
+                        let f = (done + ((written + i) / channels) as u64) as f64;
+                        (f / fade_in).min(1.0) * ((total as f64 - f) / fade_out).clamp(0.0, 1.0)
+                    }
+                    None => 1.0,
+                } as f32;
+                *dst = T::from_sample(src * volume * gain);
             }
             chunk.read += n;
             written += n;
@@ -173,6 +217,10 @@ impl Shared {
         out[written..].fill(silence);
 
         let frames = written / channels;
+        if paused {
+            self.grain_left
+                .store(grain_left.saturating_sub(frames as u64), Ordering::Relaxed);
+        }
         q.buffered_frames = q.buffered_frames.saturating_sub(frames);
         q.head_pos += frames as f64 / rate;
         let end = q.head_pos;

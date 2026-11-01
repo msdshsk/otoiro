@@ -54,6 +54,11 @@ fn seek(position: f64, state: State<'_, OtoiroState>) -> CmdResult {
 }
 
 #[tauri::command]
+fn scrub(position: f64, state: State<'_, OtoiroState>) -> CmdResult {
+    state.engine.scrub(position).map_err(engine_err)
+}
+
+#[tauri::command]
 fn stop(state: State<'_, OtoiroState>) -> CmdResult {
     state.engine.stop().map_err(engine_err)
 }
@@ -98,7 +103,7 @@ async fn waveform(path: String, buckets: Option<usize>) -> CmdResult<Waveform> {
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("otoiro")
         .invoke_handler(tauri::generate_handler![
-            subscribe, load, play, pause, seek, stop, set_volume, snapshot, media_info,
+            subscribe, load, play, pause, seek, scrub, stop, set_volume, snapshot, media_info,
             cover_art, waveform
         ])
         .setup(|app, _api| {

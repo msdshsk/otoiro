@@ -355,6 +355,18 @@
           "markdownDescription": "Denies the play command without any pre-configured scope."
         },
         {
+          "description": "Enables the scrub command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-scrub",
+          "markdownDescription": "Enables the scrub command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the scrub command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-scrub",
+          "markdownDescription": "Denies the scrub command without any pre-configured scope."
+        },
+        {
           "description": "Enables the seek command without any pre-configured scope.",
           "type": "string",
           "const": "allow-seek",
@@ -427,10 +439,10 @@
           "markdownDescription": "Denies the waveform command without any pre-configured scope."
         },
         {
-          "description": "Allows every media player command.\n#### This default permission set includes:\n\n- `allow-subscribe`\n- `allow-load`\n- `allow-play`\n- `allow-pause`\n- `allow-seek`\n- `allow-stop`\n- `allow-set-volume`\n- `allow-snapshot`\n- `allow-media-info`\n- `allow-cover-art`\n- `allow-waveform`",
+          "description": "Allows every media player command.\n#### This default permission set includes:\n\n- `allow-subscribe`\n- `allow-load`\n- `allow-play`\n- `allow-pause`\n- `allow-seek`\n- `allow-scrub`\n- `allow-stop`\n- `allow-set-volume`\n- `allow-snapshot`\n- `allow-media-info`\n- `allow-cover-art`\n- `allow-waveform`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Allows every media player command.\n#### This default permission set includes:\n\n- `allow-subscribe`\n- `allow-load`\n- `allow-play`\n- `allow-pause`\n- `allow-seek`\n- `allow-stop`\n- `allow-set-volume`\n- `allow-snapshot`\n- `allow-media-info`\n- `allow-cover-art`\n- `allow-waveform`"
+          "markdownDescription": "Allows every media player command.\n#### This default permission set includes:\n\n- `allow-subscribe`\n- `allow-load`\n- `allow-play`\n- `allow-pause`\n- `allow-seek`\n- `allow-scrub`\n- `allow-stop`\n- `allow-set-volume`\n- `allow-snapshot`\n- `allow-media-info`\n- `allow-cover-art`\n- `allow-waveform`"
         }
       ]
     }

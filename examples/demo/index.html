@@ -22,8 +22,13 @@
         </div>
         <button class="open" id="open">開く</button>
       </section>
-      <oto-seekbar id="seekbar"></oto-seekbar>
-      <oto-transport id="transport"></oto-transport>
+      <section class="deck">
+        <div class="deck-main">
+          <oto-seekbar id="seekbar"></oto-seekbar>
+          <oto-transport id="transport"></oto-transport>
+        </div>
+        <oto-jog id="jog" fps="30" title="ドラッグ／ホイール: 1フレーム　Shift: 10フレーム　Ctrl: 1秒"></oto-jog>
+      </section>
       <p class="error" id="error" hidden></p>
     </main>
     <script type="module" src="/src/main.ts"></script>

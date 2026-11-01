@@ -4,6 +4,7 @@ const COMMANDS: &[&str] = &[
     "play",
     "pause",
     "seek",
+    "scrub",
     "stop",
     "set_volume",
     "snapshot",

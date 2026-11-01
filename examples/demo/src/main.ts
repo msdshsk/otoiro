@@ -37,6 +37,7 @@ applyPalette(root, DEFAULT_PALETTE);
 const player = await Player.connect();
 seekbar.player = player;
 document.querySelector("oto-transport")!.player = player;
+document.querySelector("oto-jog")!.player = player;
 
 let current = 0;
 let coverUrl: string | null = null;

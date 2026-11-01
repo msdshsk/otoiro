@@ -16,6 +16,8 @@ const BUFFER_AHEAD: Duration = Duration::from_millis(500);
 const MAX_CHUNKS_PER_PUMP: usize = 8;
 const IDLE_WAIT: Duration = Duration::from_millis(10);
 const TICK_INTERVAL: Duration = Duration::from_millis(250);
+/// How much audio one scrub step lets through.
+const SCRUB_GRAIN: Duration = Duration::from_millis(70);
 
 type EventSink = Box<dyn Fn(EngineEvent) + Send>;
 
@@ -70,6 +72,7 @@ impl Control {
         match cmd {
             Command::Load { path, autoplay } => self.load(path, autoplay),
             Command::Play => {
+                self.shared.cancel_grain();
                 let state = self.state();
                 if state == PlaybackState::Ended {
                     self.seek(0.0);
@@ -80,13 +83,30 @@ impl Control {
                 }
             }
             Command::Pause => {
+                self.shared.cancel_grain();
                 if self.state() == PlaybackState::Playing {
                     self.shared.paused.store(true, Ordering::Relaxed);
                     self.set_state(PlaybackState::Paused);
                 }
             }
             Command::Seek(t) => {
+                self.shared.cancel_grain();
                 self.seek(t);
+                self.emit_snapshot();
+            }
+            Command::Scrub(t) => {
+                if self.source.is_none() {
+                    return;
+                }
+                // Scrubbing is a paused-state gesture, like a jog wheel on a deck.
+                self.shared.paused.store(true, Ordering::Relaxed);
+                if self.state() != PlaybackState::Paused {
+                    self.set_state_silent(PlaybackState::Paused);
+                }
+                self.seek(t);
+                // Queue the grain's audio now so it can start in the very next callback.
+                self.pump();
+                self.shared.start_grain(SCRUB_GRAIN);
                 self.emit_snapshot();
             }
             Command::Stop => {

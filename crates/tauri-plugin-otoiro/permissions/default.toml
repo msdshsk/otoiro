@@ -6,6 +6,7 @@ permissions = [
     "allow-play",
     "allow-pause",
     "allow-seek",
+    "allow-scrub",
     "allow-stop",
     "allow-set-volume",
     "allow-snapshot",

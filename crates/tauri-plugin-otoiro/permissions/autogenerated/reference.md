@@ -9,6 +9,7 @@ Allows every media player command.
 - `allow-play`
 - `allow-pause`
 - `allow-seek`
+- `allow-scrub`
 - `allow-stop`
 - `allow-set-volume`
 - `allow-snapshot`
@@ -151,6 +152,32 @@ Enables the play command without any pre-configured scope.
 <td>
 
 Denies the play command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`otoiro:allow-scrub`
+
+</td>
+<td>
+
+Enables the scrub command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`otoiro:deny-scrub`
+
+</td>
+<td>
+
+Denies the scrub command without any pre-configured scope.
 
 </td>
 </tr>

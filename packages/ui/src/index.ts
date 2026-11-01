@@ -8,3 +8,5 @@ export type { MediaInfo, WaveformData } from "./media";
 export { DEFAULT_PALETTE, applyPalette, paletteFromImage, paletteFromSound, registerPaletteProperties } from "./theme";
 export type { Palette } from "./theme";
 export { drawSoundArt } from "./art";
+export { OtoJog } from "./jog";
+export type { JogTurnDetail } from "./jog";

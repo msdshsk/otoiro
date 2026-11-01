@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-scrub"
+description = "Enables the scrub command without any pre-configured scope."
+commands.allow = ["scrub"]
+
+[[permission]]
+identifier = "deny-scrub"
+description = "Denies the scrub command without any pre-configured scope."
+commands.deny = ["scrub"]

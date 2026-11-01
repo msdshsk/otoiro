@@ -90,10 +90,24 @@ export class Player {
   seek(position: number) {
     // Optimistic: move the local clock now so the UI doesn't snap back while the
     // confirmation is in flight.
-    const duration = this.#snapshot.duration;
-    const clamped = Math.max(0, duration == null ? position : Math.min(position, duration));
+    const clamped = this.#clamp(position);
     this.#setSnapshot({ ...this.#snapshot, position: clamped });
     return cmd("seek", { position: clamped });
+  }
+
+  #clamp(position: number) {
+    const duration = this.#snapshot.duration;
+    return Math.max(0, duration == null ? position : Math.min(position, duration));
+  }
+
+  /**
+   * Jumps to `position` and plays a short grain there, leaving playback paused. Call it on
+   * every step of a jog/drag gesture for audible scrubbing.
+   */
+  scrub(position: number) {
+    const clamped = this.#clamp(position);
+    this.#setSnapshot({ ...this.#snapshot, state: this.#snapshot.path ? "paused" : this.#snapshot.state, position: clamped });
+    return cmd("scrub", { position: clamped });
   }
 
   stop() {

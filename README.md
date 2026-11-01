@@ -5,6 +5,7 @@ Tauri アプリに組み込む、フロントエンドとバックエンドが�
 
 - サンプル単位の再生クロック（デバイスに渡したサンプル数＋出力遅延から位置を算出）
 - 波形タイムライン付きのシークバー
+- 回すと音が鳴るジョグダイヤル（グレイン方式のスクラブ再生）
 - タグ・ジャケット表示と、ジャケットの色から作る配色テーマ
 - ジャケットの無い曲は、音の明るさから配色とアートワークを生成
 
@@ -63,6 +64,7 @@ seekbar.waveform = await getWaveform("C:/music/song.flac");
 |---|---|
 | `<oto-seekbar>` | ホバーで時刻表示、ドラッグでプレビューして離した時点でシーク（Esc で取消）、←/→ で ±5 秒。`waveform` を渡すと波形表示に切り替わる |
 | `<oto-transport>` | 再生／一時停止、経過時間／全体時間、音量 |
+| `<oto-jog>` | ジョグダイヤル。縦ドラッグ（10 px で 1 ノッチ）かホイールで回すと、その位置の音を短く鳴らしながら移動する。1 ノッチ＝1 フレーム（`fps` 属性、既定 30）、Shift で 10 フレーム、Ctrl で 1 秒。中央ボタンで再生／一時停止 |
 
 見た目は CSS 変数（`--oto-accent`, `--oto-accent-2`, `--oto-base`, `--oto-glow`, `--oto-track`, `--oto-wave-height` など）と `::part()` で変更できます。
 `applyPalette()` と `registerPaletteProperties()` を使うと、曲ごとの配色をアニメーション付きで切り替えられます。
@@ -71,6 +73,7 @@ seekbar.waveform = await getWaveform("C:/music/song.flac");
 
 - 出力デバイスは開いたままにし、一時停止中は無音を書き込むだけにする
 - シークは demuxer のシーク機能で行い、キューに残った古い音声は世代番号で破棄する
+- スクラブは「指定位置へシーク→約 70 ms をフェード付きで再生→一時停止」を 1 単位とし、連続で呼ぶとテープを擦るような音になる
 - バックエンドは状態変化時と 250 ms ごとにスナップショットを push し、UI は `Player.position()` で毎フレーム補間する（ポーリングしない）
 
 ## 開発
@@ -80,12 +83,12 @@ npm install
 npm run dev                                           # デモ起動
 cargo run -p otoiro --example play -- <file> [seek秒]  # エンジン単体の確認
 cargo run -p otoiro --example info -- <file>          # タグ・波形解析の確認
+cargo run -p otoiro --example scrub -- <file> [開始秒]  # スクラブの確認
 npm run typecheck
 ```
 
 ## 今後の予定
 
-- ジョグダイヤル＋スクラブ再生
 - ギャップレス再生（次のトラックを同じキューに先読み）
 - 出力デバイスの切り替え・既定デバイス変更への追従
 - 動画対応（libmpv の埋め込み）
