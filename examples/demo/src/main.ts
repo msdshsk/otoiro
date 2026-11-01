@@ -43,6 +43,7 @@ jog.unitLabels = {
   beat: "1拍",
   bar: "1小節",
   bars4: "4小節",
+  section: "セクション",
   second: "1秒",
   seconds10: "10秒",
   frame: "1フレーム",
@@ -114,6 +115,7 @@ async function describe(path: string) {
   const waveform = await getWaveform(path);
   if (stale()) return;
   seekbar.waveform = waveform;
+  jog.sections = waveform.sections.map((s) => s.start);
   highlightButton.disabled = waveform.highlight == null;
 
   const hasCover = await coverTask;

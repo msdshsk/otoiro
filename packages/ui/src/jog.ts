@@ -11,11 +11,11 @@ const RESYNC_AFTER_MS = 400;
 const FALLBACK_BEAT_SECONDS = 0.5;
 
 /** Base unit a notch moves by. Shift goes one step coarser, Ctrl always moves by a frame. */
-export type JogUnit = "beat" | "bar" | "second" | "frame";
-const UNITS: JogUnit[] = ["beat", "bar", "second", "frame"];
+export type JogUnit = "beat" | "bar" | "section" | "second" | "frame";
+const UNITS: JogUnit[] = ["beat", "bar", "section", "second", "frame"];
 
 /** What one notch currently means, after modifiers. */
-type Resolved = "beat" | "bar" | "bars4" | "second" | "seconds10" | "frame" | "frames10";
+type Resolved = "beat" | "bar" | "bars4" | "section" | "second" | "seconds10" | "frame" | "frames10";
 
 export type JogUnitLabels = Record<Resolved, string> & {
   /** Shown instead of beat/bar labels when the tempo is unknown; `{s}` is the step in seconds. */
@@ -26,6 +26,7 @@ const DEFAULT_LABELS: JogUnitLabels = {
   beat: "1 beat",
   bar: "1 bar",
   bars4: "4 bars",
+  section: "section",
   second: "1 s",
   seconds10: "10 s",
   frame: "1 frame",
@@ -42,6 +43,7 @@ const DEGREES: Record<Resolved, number> = {
   bar: 30,
   seconds10: 36,
   bars4: 60,
+  section: 45,
 };
 
 const ICON_PLAY = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>`;
@@ -159,6 +161,7 @@ export interface JogTurnDetail {
  *   (`beats-per-bar`, default 4), a second, or a frame at `fps` (default 30).
  *   Shift goes one step coarser (beat→bar, bar→4 bars, 1 s→10 s, 1→10 frames); Ctrl moves
  *   by a single frame for fine placement.
+ * - `section` jumps between `sections` boundaries (and keeps playing if it was).
  * - The chip at the bottom cycles the unit and shows what a notch means right now.
  * - The centre button plays/pauses. Arrow keys turn it when focused.
  *
@@ -175,6 +178,7 @@ export class OtoJog extends PlayerElement {
   #labels: JogUnitLabels = DEFAULT_LABELS;
   #modifiers = { shift: false, ctrl: false };
   #shownUnit = "";
+  #sections: number[] = [];
 
   #angle = 0;
   #pointerId: number | null = null;
@@ -259,7 +263,15 @@ export class OtoJog extends PlayerElement {
     this.#labels = { ...DEFAULT_LABELS, ...labels };
   }
 
-  /** Switches to the next base unit (beat → bar → second → frame → beat). */
+  /**
+   * Section start times (seconds) for the `section` unit, e.g. from `WaveformData.sections`.
+   * Without them the section unit falls back to bars.
+   */
+  set sections(starts: number[]) {
+    this.#sections = [...starts].sort((a, b) => a - b);
+  }
+
+  /** Switches to the next base unit (beat → bar → section → second → frame → beat). */
   cycleUnit() {
     this.unit = UNITS[(UNITS.indexOf(this.unit) + 1) % UNITS.length];
     this.dispatchEvent(new CustomEvent("oto-jog-unit", { detail: { unit: this.unit }, bubbles: true }));
@@ -289,9 +301,20 @@ export class OtoJog extends PlayerElement {
 
   #resolve({ shift = false, ctrl = false }): Resolved {
     if (ctrl) return "frame";
-    const unit = this.unit;
+    const unit = this.unit === "section" && this.#sections.length < 2 ? "bar" : this.unit;
     if (!shift) return unit;
-    return unit === "beat" ? "bar" : unit === "bar" ? "bars4" : unit === "second" ? "seconds10" : "frames10";
+    switch (unit) {
+      case "beat":
+        return "bar";
+      case "bar":
+        return "bars4";
+      case "section":
+        return "section";
+      case "second":
+        return "seconds10";
+      case "frame":
+        return "frames10";
+    }
   }
 
   #seconds(resolved: Resolved): number {
@@ -302,6 +325,7 @@ export class OtoJog extends PlayerElement {
       case "bar":
         return beat * this.beatsPerBar;
       case "bars4":
+      case "section":
         return beat * this.beatsPerBar * 4;
       case "second":
         return 1;
@@ -362,10 +386,23 @@ export class OtoJog extends PlayerElement {
     }
     this.#lastTurn = now;
     const duration = player?.duration ?? Infinity;
-    const delta = notches * step;
-    this.#cursor = Math.min(Math.max(this.#cursor + delta, 0), duration);
-
-    if (player?.snapshot.path) this.#queueScrub(this.#cursor);
+    const from = this.#cursor;
+    if (resolved === "section") {
+      // Jump between boundaries and keep the transport state, so the next section plays.
+      let target = from;
+      for (let i = 0; i < Math.abs(notches); i++) {
+        target =
+          notches > 0
+            ? (this.#sections.find((t) => t > target + 0.25) ?? duration)
+            : (this.#sections.filter((t) => t < target - 0.25).pop() ?? 0);
+      }
+      this.#cursor = Math.min(Math.max(target, 0), duration);
+      if (player?.snapshot.path) void player.seek(this.#cursor);
+    } else {
+      this.#cursor = Math.min(Math.max(from + notches * step, 0), duration);
+      if (player?.snapshot.path) this.#queueScrub(this.#cursor);
+    }
+    const delta = this.#cursor - from;
     this.dispatchEvent(
       new CustomEvent<JogTurnDetail>("oto-jog", {
         detail: { notches, delta, position: this.#cursor },
