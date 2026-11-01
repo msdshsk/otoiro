@@ -3,6 +3,8 @@ name = "otoiro-demo"
 description = "Demo app for Otoiro"
 edition.workspace = true
 version.workspace = true
+license.workspace = true
+repository.workspace = true
 publish = false
 
 [build-dependencies]

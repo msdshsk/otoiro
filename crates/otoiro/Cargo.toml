@@ -3,6 +3,8 @@ name = "otoiro"
 description = "Native audio playback engine (symphonia + cpal) with a sample-accurate clock"
 edition.workspace = true
 version.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 symphonia = { version = "0.6", features = ["all"] }

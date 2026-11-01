@@ -3,6 +3,8 @@ name = "tauri-plugin-otoiro"
 description = "Tauri plugin exposing otoiro to the webview"
 edition.workspace = true
 version.workspace = true
+license.workspace = true
+repository.workspace = true
 links = "tauri-plugin-otoiro"
 
 [dependencies]
