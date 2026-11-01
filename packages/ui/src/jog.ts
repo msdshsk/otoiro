@@ -162,6 +162,8 @@ export interface JogTurnDetail {
  *   (`beats-per-bar`, default 4), a second, or a frame at `fps` (default 30).
  *   Shift goes one step coarser (beat→bar, bar→4 bars, 1 s→10 s, 1→10 frames); Ctrl moves
  *   by a single frame for fine placement.
+ * - While playing, turning moves the playhead and playback continues; while paused, each step
+ *   plays a short scrub grain. Set `pause-on-turn` for the deck-style "turning pauses".
  * - `section` jumps between `sections` boundaries (and keeps playing if it was).
  * - The chip at the bottom cycles the unit and shows what a notch means right now.
  * - The centre button plays/pauses. Arrow keys turn it when focused.
@@ -188,7 +190,7 @@ export class OtoJog extends PlayerElement {
   #wheelCarry = 0;
   #cursor: number | null = null;
   #lastTurn = 0;
-  #pendingScrub: number | null = null;
+  #pendingMove: number | null = null;
   #flushJob = 0;
   #shownPlaying: boolean | null = null;
 
@@ -257,6 +259,18 @@ export class OtoJog extends PlayerElement {
 
   set unit(value: JogUnit) {
     this.setAttribute("unit", value);
+  }
+
+  /**
+   * When set, turning pauses playback and scrubs (deck-style). By default turning while
+   * playing just moves the playhead and keeps playing.
+   */
+  get pauseOnTurn(): boolean {
+    return this.hasAttribute("pause-on-turn");
+  }
+
+  set pauseOnTurn(value: boolean) {
+    this.toggleAttribute("pause-on-turn", value);
   }
 
   /** Overrides the chip texts (e.g. for localisation). */
@@ -401,7 +415,7 @@ export class OtoJog extends PlayerElement {
       if (player?.snapshot.path) void player.seek(this.#cursor);
     } else {
       this.#cursor = Math.min(Math.max(from + notches * step, 0), duration);
-      if (player?.snapshot.path) this.#queueScrub(this.#cursor);
+      if (player?.snapshot.path) this.#queueMove(this.#cursor);
     }
     const delta = this.#cursor - from;
     this.dispatchEvent(
@@ -412,15 +426,22 @@ export class OtoJog extends PlayerElement {
     );
   }
 
-  /** At most one scrub per frame; fast drags just move the target further. */
-  #queueScrub(position: number) {
-    this.#pendingScrub = position;
+  /**
+   * At most one move per frame; fast drags just move the target further. While playing the
+   * move is a seek, so playback carries on from the new position (unless `pause-on-turn`);
+   * otherwise it is a scrub grain, so a paused player can still be heard.
+   */
+  #queueMove(position: number) {
+    this.#pendingMove = position;
     if (this.#flushJob) return;
     this.#flushJob = requestAnimationFrame(() => {
       this.#flushJob = 0;
-      const target = this.#pendingScrub;
-      this.#pendingScrub = null;
-      if (target != null) void this.player?.scrub(target);
+      const target = this.#pendingMove;
+      this.#pendingMove = null;
+      const player = this.player;
+      if (target == null || !player) return;
+      if (player.state === "playing" && !this.pauseOnTurn) void player.seek(target);
+      else void player.scrub(target);
     });
   }
 

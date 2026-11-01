@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev": "npm run tauri -w examples/demo -- dev",
-    "typecheck": "npm run typecheck -w packages/ui && npm run typecheck -w examples/demo"
+    "typecheck": "npm run typecheck -w packages/ui && npm run typecheck -w examples/demo",
+    "test": "npm run test -w packages/ui"
   }
 }
