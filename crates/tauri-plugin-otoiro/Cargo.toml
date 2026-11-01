@@ -1,0 +1,15 @@
+[package]
+name = "tauri-plugin-otoiro"
+description = "Tauri plugin exposing otoiro to the webview"
+edition.workspace = true
+version.workspace = true
+links = "tauri-plugin-otoiro"
+
+[dependencies]
+tauri = "2"
+otoiro.workspace = true
+serde = { version = "1", features = ["derive"] }
+log = "0.4"
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }

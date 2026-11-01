@@ -1,0 +1,19 @@
+{
+  "name": "@otoiro/ui",
+  "version": "0.1.0",
+  "description": "Frontend half of Otoiro: typed bindings for tauri-plugin-otoiro and framework-agnostic player widgets",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@tauri-apps/api": "^2.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/api": "^2.12.4",
+    "typescript": "^7.0.2"
+  }
+}

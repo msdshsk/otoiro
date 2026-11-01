@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = ["crates/otoiro", "crates/tauri-plugin-otoiro", "examples/demo/src-tauri"]
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+
+[workspace.dependencies]
+otoiro = { path = "crates/otoiro" }
+tauri-plugin-otoiro = { path = "crates/tauri-plugin-otoiro" }
+
+# Decoding/resampling are far too slow unoptimised; keep dependencies fast in dev builds.
+[profile.dev.package."*"]
+opt-level = 3

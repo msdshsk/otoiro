@@ -1,0 +1,15 @@
+[default]
+description = "Allows every media player command."
+permissions = [
+    "allow-subscribe",
+    "allow-load",
+    "allow-play",
+    "allow-pause",
+    "allow-seek",
+    "allow-stop",
+    "allow-set-volume",
+    "allow-snapshot",
+    "allow-media-info",
+    "allow-cover-art",
+    "allow-waveform",
+]

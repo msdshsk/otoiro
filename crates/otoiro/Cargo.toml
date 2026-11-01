@@ -1,0 +1,13 @@
+[package]
+name = "otoiro"
+description = "Native audio playback engine (symphonia + cpal) with a sample-accurate clock"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+symphonia = { version = "0.6", features = ["all"] }
+cpal = "0.18"
+rubato = "5"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+log = "0.4"

@@ -1,0 +1,12 @@
+{
+  "name": "otoiro",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "examples/demo"
+  ],
+  "scripts": {
+    "dev": "npm run tauri -w examples/demo -- dev",
+    "typecheck": "npm run typecheck -w packages/ui && npm run typecheck -w examples/demo"
+  }
+}

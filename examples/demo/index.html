@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Otoiro demo</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div class="backdrop" aria-hidden="true"><img id="backdrop-img" alt="" /></div>
+    <main class="card" id="drop-zone">
+      <section class="now">
+        <div class="art">
+          <img id="cover" alt="" hidden />
+          <canvas id="art-canvas" width="264" height="264"></canvas>
+        </div>
+        <div class="meta">
+          <div class="eyebrow" id="eyebrow">NOW PLAYING</div>
+          <h1 class="title" id="title">ファイルをドロップ</h1>
+          <div class="artist" id="artist">または「開く」で音声ファイルを選択</div>
+          <div class="chips" id="chips"></div>
+        </div>
+        <button class="open" id="open">開く</button>
+      </section>
+      <oto-seekbar id="seekbar"></oto-seekbar>
+      <oto-transport id="transport"></oto-transport>
+      <p class="error" id="error" hidden></p>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

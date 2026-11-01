@@ -1,0 +1,14 @@
+[package]
+name = "otoiro-demo"
+description = "Demo app for Otoiro"
+edition.workspace = true
+version.workspace = true
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-otoiro.workspace = true
