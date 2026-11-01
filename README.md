@@ -58,6 +58,16 @@ seekbar.waveform = await getWaveform("C:/music/song.flac");
 
 `@otoiro/ui` は TypeScript のソースをそのまま公開しているので、Vite などのバンドラ経由で使ってください。
 
+バンドラを使わないアプリ（`withGlobalTauri` で素の JS を読み込む構成など）向けに、依存を同梱した 1 ファイルの ES モジュールもビルドできます。
+
+```sh
+npm run build -w packages/ui   # → packages/ui/dist/otoiro-ui.js
+```
+
+```js
+import { Player } from "./vendor/otoiro-ui.js";
+```
+
 ### ウィジェット
 
 | 要素 | 内容 |

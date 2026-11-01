@@ -3,19 +3,26 @@
   "version": "0.1.0",
   "description": "Frontend half of Otoiro: typed bindings for tauri-plugin-otoiro and framework-agnostic player widgets",
   "license": "MIT",
-  "repository": { "type": "git", "url": "git+https://github.com/msdshsk/otoiro.git", "directory": "packages/ui" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/msdshsk/otoiro.git",
+    "directory": "packages/ui"
+  },
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./dist/otoiro-ui.js": "./dist/otoiro-ui.js"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "vite build"
   },
   "peerDependencies": {
     "@tauri-apps/api": "^2.0.0"
   },
   "devDependencies": {
     "@tauri-apps/api": "^2.12.4",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
   }
 }
