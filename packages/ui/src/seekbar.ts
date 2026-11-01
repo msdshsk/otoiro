@@ -226,7 +226,7 @@ template.innerHTML = `
  * - Hover shows the time under the cursor.
  * - Dragging previews the target (with the offset from the current position) and seeks on
  *   release; Escape cancels.
- * - Keyboard: ←/→ ±5s, Home/End, PageUp/PageDown previous/next section.
+ * - Keyboard: Space play/pause, ←/→ ±5s, Home/End, PageUp/PageDown previous/next section.
  * - With waveform analysis, section boundaries are marked, every chorus candidate gets a ★
  *   badge and band, and (unless `showVocals` is off) sung stretches get a line along the
  *   bottom with a ♪ badge at the vocal entry. `markerLabels` sets the tooltips.
@@ -578,6 +578,12 @@ export class OtoSeekbar extends PlayerElement {
     const player = this.player;
     const duration = player?.duration;
     if (!player || !duration) return;
+    if (e.key === " ") {
+      // Same as the jog: play/pause when focused, marked as handled for bindMediaKeys().
+      e.preventDefault();
+      if (!e.repeat) void player.toggle();
+      return;
+    }
     if (e.key === "Escape" && this.#dragRatio != null) {
       this.#endDrag();
       return;

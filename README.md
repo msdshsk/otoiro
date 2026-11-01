@@ -77,6 +77,8 @@ import { Player } from "./vendor/otoiro-ui.js";
 | `<oto-transport>` | 再生／一時停止、経過時間／全体時間、音量 |
 | `<oto-jog>` | ジョグダイヤル。縦ドラッグ（10 px で 1 ノッチ）かホイールで回すと、その位置の音を短く鳴らしながら移動する（ホイールは下で進む）。1 ノッチの単位は `unit`（`beat`＝既定 / `bar` / `section` / `second` / `frame`）。`section` は `sections` で渡した区切りへ移動する。拍は `bpm` から求め、不明なら 0.5 秒。Shift で一段粗く（拍→小節など）、Ctrl でフレーム単位。下のチップで単位を切り替え、`unitLabels` で表示文字列を変更できる。中央ボタンで再生／一時停止 |
 
+キーボード: `bindMediaKeys(player)` を呼ぶと、アプリ全体でスペース（とキーボードの再生／一時停止キー）が再生／一時停止になる。文字入力欄・select・contenteditable と Ctrl/Alt/Meta 併用時は反応しない。ボタンやチェックボックスにフォーカスがあってもスペースは再生／一時停止として扱う（Enter で決定できる）。シークバーとジョグはフォーカス時に自前でスペースを処理し、二重に反応しない。
+
 見た目は CSS 変数（`--oto-accent`, `--oto-accent-2`, `--oto-base`, `--oto-glow`, `--oto-track`, `--oto-wave-height` など）と `::part()` で変更できます。
 `applyPalette()` と `registerPaletteProperties()` を使うと、曲ごとの配色をアニメーション付きで切り替えられます。
 

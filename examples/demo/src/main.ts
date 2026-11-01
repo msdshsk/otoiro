@@ -5,6 +5,7 @@ import {
   DEFAULT_PALETTE,
   Player,
   applyPalette,
+  bindMediaKeys,
   drawSoundArt,
   fileName,
   formatTime,
@@ -155,12 +156,7 @@ await getCurrentWebview().onDragDropEvent(({ payload }) => {
   if (payload.type === "drop" && payload.paths.length > 0) void load(payload.paths[0]);
 });
 
-window.addEventListener("keydown", (e) => {
-  if (e.code === "Space" && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLButtonElement)) {
-    e.preventDefault();
-    void player.toggle();
-  }
-});
+bindMediaKeys(player);
 
 const initial = await invoke<string | null>("initial_path");
 if (initial) await load(initial);

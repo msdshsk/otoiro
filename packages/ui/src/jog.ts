@@ -480,9 +480,9 @@ export class OtoJog extends PlayerElement {
       e.preventDefault();
       this.turn(dir, { shift: e.shiftKey, ctrl: e.ctrlKey });
     } else if (e.key === " " || e.key === "Enter") {
+      // Marked as handled so an app-wide bindMediaKeys() doesn't toggle a second time.
       e.preventDefault();
-      e.stopPropagation();
-      void this.player?.toggle();
+      if (!e.repeat) void this.player?.toggle();
     }
   };
 }

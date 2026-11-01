@@ -11,3 +11,5 @@ export type { Palette } from "./theme";
 export { drawSoundArt } from "./art";
 export { OtoJog } from "./jog";
 export type { JogTurnDetail, JogUnit, JogUnitLabels } from "./jog";
+export { bindMediaKeys } from "./keys";
+export type { MediaKeyOptions } from "./keys";
