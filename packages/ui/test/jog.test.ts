@@ -70,6 +70,49 @@ describe("<oto-jog> while playing", () => {
   });
 });
 
+describe("<oto-jog> wheel steps", () => {
+  const wheel = (jog: OtoJog, deltaY: number) =>
+    jog.dispatchEvent(new WheelEvent("wheel", { deltaY, cancelable: true }));
+
+  it("moves exactly one notch per mouse wheel detent", async () => {
+    const player = fakePlayer("playing", 10);
+    const jog = mountJog(player, { bpm: "120" });
+    const turns: number[] = [];
+    jog.addEventListener("oto-jog", (e) => turns.push((e as CustomEvent).detail.notches));
+
+    for (let i = 0; i < 8; i++) wheel(jog, 100);
+
+    expect(turns).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
+    await nextFrame();
+    expect(player.seek).toHaveBeenLastCalledWith(14);
+  });
+
+  it("treats a scaled detent (e.g. 125% display) as one notch too", () => {
+    const jog = mountJog(fakePlayer(), { bpm: "120" });
+    const turns: number[] = [];
+    jog.addEventListener("oto-jog", (e) => turns.push((e as CustomEvent).detail.notches));
+    wheel(jog, 125);
+    wheel(jog, 125);
+    expect(turns).toEqual([1, 1]);
+  });
+
+  it("counts coalesced detents from a fast spin", () => {
+    const jog = mountJog(fakePlayer(), { bpm: "120" });
+    const turns: number[] = [];
+    jog.addEventListener("oto-jog", (e) => turns.push((e as CustomEvent).detail.notches));
+    wheel(jog, 300);
+    expect(turns).toEqual([3]);
+  });
+
+  it("accumulates small touchpad deltas into notches", () => {
+    const jog = mountJog(fakePlayer(), { bpm: "120" });
+    const turns: number[] = [];
+    jog.addEventListener("oto-jog", (e) => turns.push((e as CustomEvent).detail.notches));
+    for (let i = 0; i < 10; i++) wheel(jog, 10);
+    expect(turns.reduce((a, b) => a + b, 0)).toBe(2);
+  });
+});
+
 describe("<oto-jog> while paused", () => {
   it("scrubs so the new position can be heard", async () => {
     const player = fakePlayer("paused", 10);

@@ -3,8 +3,12 @@ import { formatTime } from "./player";
 
 /** Drag travel for one notch. Small enough to place a single frame by hand. */
 const PIXELS_PER_NOTCH = 10;
-/** Wheel travel (pixel-mode deltas, e.g. touchpads) for one notch. */
-const WHEEL_PIXELS_PER_NOTCH = 60;
+/** Pixel delta of one mouse wheel detent in Chromium at 100 % scaling. */
+const WHEEL_DETENT_PIXELS = 100;
+/** Pixel deltas smaller than this come from a touchpad (or a smooth-scrolling wheel). */
+const WHEEL_TOUCHPAD_MAX_DELTA = 50;
+/** Accumulated touchpad travel for one notch. */
+const WHEEL_TOUCHPAD_PIXELS_PER_NOTCH = 50;
 /** After this long without turning, the next turn starts from the player's position again. */
 const RESYNC_AFTER_MS = 400;
 /** Beat length used when the tempo is unknown. */
@@ -480,14 +484,20 @@ export class OtoJog extends PlayerElement {
     // horizontal scroll in Chromium, so fall back to deltaX.
     const delta = e.deltaY !== 0 ? e.deltaY : e.deltaX;
     let notches: number;
-    if (e.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
-      this.#wheelCarry += delta / WHEEL_PIXELS_PER_NOTCH;
-      notches = Math.trunc(this.#wheelCarry);
-      // A mouse wheel detent (~100 px) is always at least one notch.
-      if (notches === 0 && Math.abs(delta) >= WHEEL_PIXELS_PER_NOTCH) notches = Math.sign(delta);
-      this.#wheelCarry -= notches;
-    } else {
+    if (e.deltaMode !== WheelEvent.DOM_DELTA_PIXEL) {
+      // Line/page deltas: one notch per event.
       notches = Math.sign(delta);
+    } else if (Math.abs(delta) >= WHEEL_TOUCHPAD_MAX_DELTA) {
+      // A mouse wheel: one detent is ~100 px (more with display scaling) and must always be
+      // exactly one notch; a fast spin may deliver several detents in one event.
+      this.#wheelCarry = 0;
+      notches = Math.sign(delta) * Math.max(1, Math.round(Math.abs(delta) / WHEEL_DETENT_PIXELS));
+    } else {
+      // Touchpads send many small deltas; add them up.
+      if (Math.sign(delta) !== Math.sign(this.#wheelCarry)) this.#wheelCarry = 0;
+      this.#wheelCarry += delta / WHEEL_TOUCHPAD_PIXELS_PER_NOTCH;
+      notches = Math.trunc(this.#wheelCarry);
+      this.#wheelCarry -= notches;
     }
     this.turn(notches, { shift: e.shiftKey, ctrl: e.ctrlKey });
   };
