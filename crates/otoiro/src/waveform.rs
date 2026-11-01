@@ -6,6 +6,7 @@ use symphonia::core::errors::Error as SymError;
 use symphonia::core::formats::TrackType;
 
 use crate::info::open_format;
+use crate::structure::{self, Section};
 
 /// Analysis resolution before reduction to the requested bucket count.
 const BLOCKS_PER_SECOND: u32 = 200;
@@ -22,6 +23,11 @@ pub struct Waveform {
     /// 0..=1, how "bright" the track sounds overall (zero-crossing rate on a log scale).
     /// Useful for picking a colour when there is no cover art.
     pub brightness: f32,
+    /// Estimated sections (intro, verse, chorus, ...), split where the loudness contour
+    /// changes for good. Always covers the whole track.
+    pub sections: Vec<Section>,
+    /// Start (seconds) of the section that is most likely the chorus / climax.
+    pub highlight: Option<f64>,
 }
 
 pub fn waveform(path: &str, buckets: usize) -> Result<Waveform, String> {
@@ -44,7 +50,8 @@ pub fn waveform(path: &str, buckets: usize) -> Result<Waveform, String> {
     let mut block_peak: Vec<f32> = Vec::new();
     let mut block_sq: Vec<f64> = Vec::new();
     let mut block_len: Vec<u32> = Vec::new();
-    let (mut cur_peak, mut cur_sq, mut cur_len) = (0f32, 0f64, 0u32);
+    let mut block_zc: Vec<u32> = Vec::new();
+    let (mut cur_peak, mut cur_sq, mut cur_len, mut cur_zc) = (0f32, 0f64, 0u32, 0u32);
     let mut block_frames = 0u32;
     let mut total_frames = 0u64;
     let mut rate = 0u32;
@@ -77,7 +84,9 @@ pub fn waveform(path: &str, buckets: usize) -> Result<Waveform, String> {
 
         for frame in samples.chunks_exact(channels) {
             let sign = frame[0] >= 0.0;
-            crossings += (sign != last_sign) as u64;
+            let crossed = (sign != last_sign) as u32;
+            crossings += crossed as u64;
+            cur_zc += crossed;
             last_sign = sign;
             let mut sq = 0f64;
             for &s in frame {
@@ -90,7 +99,8 @@ pub fn waveform(path: &str, buckets: usize) -> Result<Waveform, String> {
                 block_peak.push(cur_peak);
                 block_sq.push(cur_sq);
                 block_len.push(cur_len);
-                (cur_peak, cur_sq, cur_len) = (0.0, 0.0, 0);
+                block_zc.push(cur_zc);
+                (cur_peak, cur_sq, cur_len, cur_zc) = (0.0, 0.0, 0, 0);
             }
         }
         total_frames += (samples.len() / channels) as u64;
@@ -99,6 +109,7 @@ pub fn waveform(path: &str, buckets: usize) -> Result<Waveform, String> {
         block_peak.push(cur_peak);
         block_sq.push(cur_sq);
         block_len.push(cur_len);
+        block_zc.push(cur_zc);
     }
 
     let mut peak = vec![0f32; buckets];
@@ -124,10 +135,16 @@ pub fn waveform(path: &str, buckets: usize) -> Result<Waveform, String> {
     let crossing_hz = if duration > 0.0 { crossings as f64 / duration / 2.0 } else { 0.0 };
     let brightness = ((crossing_hz.max(1.0) / 100.0).log2() / (4000.0f64 / 100.0).log2()).clamp(0.0, 1.0) as f32;
 
+    let block_seconds = if rate > 0 { block_frames as f64 / rate as f64 } else { 0.0 };
+    let (sections, highlight) =
+        structure::analyze(&block_sq, &block_len, &block_zc, block_seconds, duration);
+
     Ok(Waveform {
         duration,
         peak,
         rms,
         brightness,
+        sections,
+        highlight,
     })
 }

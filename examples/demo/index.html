@@ -25,9 +25,14 @@
       <section class="deck">
         <div class="deck-main">
           <oto-seekbar id="seekbar"></oto-seekbar>
+          <div class="nav">
+            <button id="prev-section" title="前のセクション (PageUp)">⏮ セクション</button>
+            <button id="highlight" class="star" title="サビ（盛り上がり）へ">★ サビへ</button>
+            <button id="next-section" title="次のセクション (PageDown)">セクション ⏭</button>
+          </div>
           <oto-transport id="transport"></oto-transport>
         </div>
-        <oto-jog id="jog" fps="30" title="ドラッグ／ホイール: 1フレーム　Shift: 10フレーム　Ctrl: 1秒"></oto-jog>
+        <oto-jog id="jog" fps="30" title="ドラッグ／ホイール: 1拍　Shift: 1小節　Ctrl: 1フレーム　下のチップで単位を切り替え"></oto-jog>
       </section>
       <p class="error" id="error" hidden></p>
     </main>

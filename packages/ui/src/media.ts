@@ -24,6 +24,17 @@ export interface WaveformData {
   rms: number[];
   /** 0..1, overall spectral brightness of the track. */
   brightness: number;
+  /** Estimated sections, covering the whole track. */
+  sections: Section[];
+  /** Start (seconds) of the likely chorus / climax. */
+  highlight: number | null;
+}
+
+export interface Section {
+  start: number;
+  end: number;
+  /** 0..1 relative intensity (loudest section = 1). */
+  energy: number;
 }
 
 /** Tags and stream parameters, read without starting playback. */

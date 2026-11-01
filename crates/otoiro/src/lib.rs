@@ -12,6 +12,7 @@ mod control;
 mod info;
 mod output;
 mod source;
+mod structure;
 mod waveform;
 
 use std::sync::mpsc::{self, Sender};
@@ -23,6 +24,7 @@ use serde::Serialize;
 use output::Shared;
 
 pub use info::{cover_art, media_info, CoverArt, MediaInfo};
+pub use structure::Section;
 pub use waveform::{waveform, Waveform};
 
 #[derive(Debug, thiserror::Error)]

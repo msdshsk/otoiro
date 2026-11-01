@@ -109,6 +109,52 @@ template.innerHTML = `
     background: linear-gradient(90deg, var(--_accent), var(--_accent-2));
     filter: drop-shadow(0 0 6px color-mix(in srgb, var(--_accent) 55%, transparent));
   }
+  .marks { position: absolute; inset: 0; pointer-events: none; }
+  .boundary {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    width: 1px;
+    background: rgb(255 255 255 / 0.28);
+  }
+  .boundary::before {
+    content: "";
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    width: 5px;
+    height: 3px;
+    border-radius: 1px;
+    background: rgb(255 255 255 / 0.55);
+  }
+  .highlight-band {
+    position: absolute;
+    top: 0;
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--_accent), var(--_accent-2));
+    opacity: 0.85;
+  }
+  .highlight-badge {
+    position: absolute;
+    top: -9px;
+    translate: -50% 0;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--_accent);
+    color: var(--oto-on-accent, var(--oto-base, #111118));
+    font: 700 11px/1 system-ui, sans-serif;
+    box-shadow: 0 0 10px color-mix(in srgb, var(--_accent) 70%, transparent);
+    cursor: pointer;
+    pointer-events: auto;
+    transition: scale 140ms cubic-bezier(.3,1.6,.5,1);
+  }
+  .highlight-badge:hover { scale: 1.2; }
   .playhead {
     position: absolute;
     top: -4px;
@@ -125,6 +171,7 @@ template.innerHTML = `
   <div class="layer base"></div>
   <div class="layer hover"></div>
   <div class="layer played"></div>
+  <div class="marks" part="marks"></div>
   <div class="playhead" part="playhead"></div>
 </div>
 <div class="rail" part="rail">
@@ -141,7 +188,9 @@ template.innerHTML = `
  * - Hover shows the time under the cursor.
  * - Dragging previews the target (with the offset from the current position) and seeks on
  *   release; Escape cancels.
- * - Keyboard: ←/→ ±5s, Home/End.
+ * - Keyboard: ←/→ ±5s, Home/End, PageUp/PageDown previous/next section.
+ * - With a waveform that carries `sections`/`highlight`, section boundaries are marked and a
+ *   ★ badge jumps to the highlight (chorus).
  *
  * Set `waveform` to switch from a thin rail to a waveform timeline (played part in the accent
  * gradient, hovered part highlighted, glowing playhead).
@@ -160,6 +209,7 @@ export class OtoSeekbar extends PlayerElement {
   #waveHover: HTMLElement;
   #wavePlayed: HTMLElement;
   #playhead: HTMLElement;
+  #marks: HTMLElement;
 
   #waveform: WaveformData | null = null;
   #maskUrl: string | null = null;
@@ -186,6 +236,7 @@ export class OtoSeekbar extends PlayerElement {
     this.#waveHover = root.querySelector(".layer.hover")!;
     this.#wavePlayed = root.querySelector(".layer.played")!;
     this.#playhead = root.querySelector(".playhead")!;
+    this.#marks = root.querySelector(".marks")!;
 
     this.tabIndex = 0;
     this.setAttribute("role", "slider");
@@ -210,6 +261,67 @@ export class OtoSeekbar extends PlayerElement {
     this.toggleAttribute("has-waveform", waveform != null);
     this.#maskWidth = 0;
     this.#scheduleMask();
+    this.#renderMarks();
+  }
+
+  /** Section start times (seconds), first one at 0. Empty without waveform data. */
+  get sectionStarts(): number[] {
+    return this.#waveform?.sections.map((s) => s.start) ?? [];
+  }
+
+  /** Seeks to the next section boundary after the current position. */
+  nextSection() {
+    const pos = this.player?.position() ?? 0;
+    const next = this.sectionStarts.find((t) => t > pos + 0.5);
+    if (next != null) void this.player?.seek(next);
+  }
+
+  /** Seeks to the start of the current section, or the previous one when already near it. */
+  previousSection() {
+    const pos = this.player?.position() ?? 0;
+    const prev = this.sectionStarts.filter((t) => t < pos - 1.5).pop();
+    void this.player?.seek(prev ?? 0);
+  }
+
+  /** Seeks to the estimated chorus / climax. */
+  jumpToHighlight() {
+    const t = this.#waveform?.highlight;
+    if (t != null) void this.player?.seek(t);
+  }
+
+  #renderMarks() {
+    const waveform = this.#waveform;
+    this.#marks.replaceChildren();
+    if (!waveform || waveform.duration <= 0) return;
+    const pct = (t: number) => `${(t / waveform.duration) * 100}%`;
+    for (const section of waveform.sections.slice(1)) {
+      const line = document.createElement("div");
+      line.className = "boundary";
+      line.style.left = pct(section.start);
+      this.#marks.append(line);
+    }
+    const highlight = waveform.highlight;
+    if (highlight == null) return;
+    const section = waveform.sections.find((s) => s.start === highlight);
+    if (section) {
+      const band = document.createElement("div");
+      band.className = "highlight-band";
+      band.style.left = pct(section.start);
+      band.style.width = `${((section.end - section.start) / waveform.duration) * 100}%`;
+      this.#marks.append(band);
+    }
+    const badge = document.createElement("button");
+    badge.className = "highlight-badge";
+    badge.setAttribute("part", "highlight");
+    badge.textContent = "★";
+    badge.title = "Jump to highlight";
+    badge.style.left = pct(highlight);
+    badge.addEventListener("pointerdown", (e) => e.stopPropagation());
+    badge.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.jumpToHighlight();
+    });
+    this.#marks.append(badge);
   }
 
   connectedCallback() {
@@ -360,6 +472,12 @@ export class OtoSeekbar extends PlayerElement {
     if (!player || !duration) return;
     if (e.key === "Escape" && this.#dragRatio != null) {
       this.#endDrag();
+      return;
+    }
+    if (e.key === "PageDown" || e.key === "PageUp") {
+      e.preventDefault();
+      if (e.key === "PageDown") this.nextSection();
+      else this.previousSection();
       return;
     }
     const pos = player.position();

@@ -7,6 +7,42 @@ const PIXELS_PER_NOTCH = 10;
 const WHEEL_PIXELS_PER_NOTCH = 60;
 /** After this long without turning, the next turn starts from the player's position again. */
 const RESYNC_AFTER_MS = 400;
+/** Beat length used when the tempo is unknown. */
+const FALLBACK_BEAT_SECONDS = 0.5;
+
+/** Base unit a notch moves by. Shift goes one step coarser, Ctrl always moves by a frame. */
+export type JogUnit = "beat" | "bar" | "second" | "frame";
+const UNITS: JogUnit[] = ["beat", "bar", "second", "frame"];
+
+/** What one notch currently means, after modifiers. */
+type Resolved = "beat" | "bar" | "bars4" | "second" | "seconds10" | "frame" | "frames10";
+
+export type JogUnitLabels = Record<Resolved, string> & {
+  /** Shown instead of beat/bar labels when the tempo is unknown; `{s}` is the step in seconds. */
+  seconds: string;
+};
+
+const DEFAULT_LABELS: JogUnitLabels = {
+  beat: "1 beat",
+  bar: "1 bar",
+  bars4: "4 bars",
+  second: "1 s",
+  seconds10: "10 s",
+  frame: "1 frame",
+  frames10: "10 frames",
+  seconds: "{s} s",
+};
+
+/** Dial rotation per notch, so coarser steps also look bigger. */
+const DEGREES: Record<Resolved, number> = {
+  frame: 6,
+  frames10: 24,
+  beat: 12,
+  second: 12,
+  bar: 30,
+  seconds10: 36,
+  bars4: 60,
+};
 
 const ICON_PLAY = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>`;
 const ICON_PAUSE = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4.5" height="14" rx="1.2"/><rect x="13.5" y="5" width="4.5" height="14" rx="1.2"/></svg>`;
@@ -68,6 +104,25 @@ template.innerHTML = `
     white-space: nowrap;
   }
   :host([turning]) .label { color: rgb(240 246 250 / 0.95); }
+  .unit {
+    position: absolute;
+    left: 50%;
+    bottom: -7px;
+    translate: -50% 0;
+    padding: 2px 7px 2px 8px;
+    border: 1px solid #56616A;
+    border-radius: 999px;
+    background: #0d1012;
+    color: var(--_accent);
+    font: 600 9px/1.3 system-ui, "Segoe UI", "Yu Gothic UI", sans-serif;
+    white-space: nowrap;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 0.5);
+    transition: border-color 120ms, background 120ms;
+  }
+  .unit::after { content: " ▾"; opacity: 0.6; font-size: 8px; }
+  .unit:hover { border-color: var(--_accent); }
+  :host([modified]) .unit { background: color-mix(in srgb, var(--_accent) 25%, #0d1012); }
 </style>
 <svg class="face" viewBox="0 0 112 112" aria-hidden="true">
   <g class="rotor">
@@ -85,6 +140,7 @@ template.innerHTML = `
   <span class="icon"></span>
   <span class="label" part="label">SCRUB</span>
 </button>
+<button class="unit" part="unit"></button>
 `;
 
 export interface JogTurnDetail {
@@ -99,11 +155,15 @@ export interface JogTurnDetail {
  * `<oto-jog>`: a jog wheel that scrubs the player audibly.
  *
  * - Drag vertically (up = forward, 10 px per notch, remainders carried) or use the wheel.
- * - One notch is one frame at `fps` (default 30); Shift = 10 frames, Ctrl = 1 second.
+ * - One notch moves by `unit`: a beat (default; needs `bpm`, otherwise 0.5 s), a bar
+ *   (`beats-per-bar`, default 4), a second, or a frame at `fps` (default 30).
+ *   Shift goes one step coarser (beat→bar, bar→4 bars, 1 s→10 s, 1→10 frames); Ctrl moves
+ *   by a single frame for fine placement.
+ * - The chip at the bottom cycles the unit and shows what a notch means right now.
  * - The centre button plays/pauses. Arrow keys turn it when focused.
  *
- * Fires `oto-jog` (`JogTurnDetail`) on every turn. Styling: `--oto-accent`, `--oto-jog-size`,
- * `::part(center|label)`.
+ * Fires `oto-jog` (`JogTurnDetail`) on every turn and `oto-jog-unit` (`{ unit }`) when the
+ * unit changes. Styling: `--oto-accent`, `--oto-jog-size`, `::part(center|label|unit)`.
  */
 export class OtoJog extends PlayerElement {
   #rotor: SVGGElement;
@@ -111,6 +171,10 @@ export class OtoJog extends PlayerElement {
   #icon: HTMLElement;
   #label: HTMLElement;
   #center: HTMLButtonElement;
+  #unitChip: HTMLButtonElement;
+  #labels: JogUnitLabels = DEFAULT_LABELS;
+  #modifiers = { shift: false, ctrl: false };
+  #shownUnit = "";
 
   #angle = 0;
   #pointerId: number | null = null;
@@ -132,6 +196,9 @@ export class OtoJog extends PlayerElement {
     this.#icon = root.querySelector(".icon")!;
     this.#label = root.querySelector(".label")!;
     this.#center = root.querySelector(".center")!;
+    this.#unitChip = root.querySelector(".unit")!;
+    this.#unitChip.addEventListener("pointerdown", (e) => e.stopPropagation());
+    this.#unitChip.addEventListener("click", () => this.cycleUnit());
 
     this.tabIndex = 0;
     this.setAttribute("role", "slider");
@@ -158,6 +225,104 @@ export class OtoJog extends PlayerElement {
     this.setAttribute("fps", String(value));
   }
 
+  /** Tempo for beat/bar steps; null when unknown (beats fall back to 0.5 s). */
+  get bpm(): number | null {
+    const v = Number(this.getAttribute("bpm"));
+    return Number.isFinite(v) && v > 0 ? v : null;
+  }
+
+  set bpm(value: number | null) {
+    if (value != null && value > 0) this.setAttribute("bpm", String(value));
+    else this.removeAttribute("bpm");
+  }
+
+  get beatsPerBar(): number {
+    const v = Number(this.getAttribute("beats-per-bar"));
+    return Number.isInteger(v) && v > 0 ? v : 4;
+  }
+
+  set beatsPerBar(value: number) {
+    this.setAttribute("beats-per-bar", String(value));
+  }
+
+  get unit(): JogUnit {
+    const v = this.getAttribute("unit") as JogUnit | null;
+    return v && UNITS.includes(v) ? v : "beat";
+  }
+
+  set unit(value: JogUnit) {
+    this.setAttribute("unit", value);
+  }
+
+  /** Overrides the chip texts (e.g. for localisation). */
+  set unitLabels(labels: Partial<JogUnitLabels>) {
+    this.#labels = { ...DEFAULT_LABELS, ...labels };
+  }
+
+  /** Switches to the next base unit (beat → bar → second → frame → beat). */
+  cycleUnit() {
+    this.unit = UNITS[(UNITS.indexOf(this.unit) + 1) % UNITS.length];
+    this.dispatchEvent(new CustomEvent("oto-jog-unit", { detail: { unit: this.unit }, bubbles: true }));
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener("keydown", this.#trackModifiers);
+    window.addEventListener("keyup", this.#trackModifiers);
+    window.addEventListener("blur", this.#clearModifiers);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.removeEventListener("keydown", this.#trackModifiers);
+    window.removeEventListener("keyup", this.#trackModifiers);
+    window.removeEventListener("blur", this.#clearModifiers);
+  }
+
+  #trackModifiers = (e: KeyboardEvent) => {
+    this.#modifiers = { shift: e.shiftKey, ctrl: e.ctrlKey };
+  };
+
+  #clearModifiers = () => {
+    this.#modifiers = { shift: false, ctrl: false };
+  };
+
+  #resolve({ shift = false, ctrl = false }): Resolved {
+    if (ctrl) return "frame";
+    const unit = this.unit;
+    if (!shift) return unit;
+    return unit === "beat" ? "bar" : unit === "bar" ? "bars4" : unit === "second" ? "seconds10" : "frames10";
+  }
+
+  #seconds(resolved: Resolved): number {
+    const beat = this.bpm ? 60 / this.bpm : FALLBACK_BEAT_SECONDS;
+    switch (resolved) {
+      case "beat":
+        return beat;
+      case "bar":
+        return beat * this.beatsPerBar;
+      case "bars4":
+        return beat * this.beatsPerBar * 4;
+      case "second":
+        return 1;
+      case "seconds10":
+        return 10;
+      case "frame":
+        return 1 / this.fps;
+      case "frames10":
+        return 10 / this.fps;
+    }
+  }
+
+  #unitText(resolved: Resolved): string {
+    const musical = resolved === "beat" || resolved === "bar" || resolved === "bars4";
+    if (musical && !this.bpm) {
+      const s = Math.round(this.#seconds(resolved) * 100) / 100;
+      return this.#labels.seconds.replace("{s}", String(s));
+    }
+    return this.#labels[resolved];
+  }
+
   protected render(now: number) {
     const playing = this.player?.state === "playing";
     if (playing !== this.#shownPlaying) {
@@ -167,15 +332,26 @@ export class OtoJog extends PlayerElement {
     }
     const turning = now - this.#lastTurn < 700;
     this.toggleAttribute("turning", turning);
-    const text = turning && this.#cursor != null ? formatPrecise(this.#cursor) : "SCRUB";
+    const idle = this.bpm ? `${Math.round(this.bpm)} BPM` : "SCRUB";
+    const text = turning && this.#cursor != null ? formatPrecise(this.#cursor) : idle;
     if (this.#label.textContent !== text) this.#label.textContent = text;
+
+    const modified = this.#modifiers.shift || this.#modifiers.ctrl;
+    this.toggleAttribute("modified", modified);
+    const unitText = this.#unitText(this.#resolve(this.#modifiers));
+    if (unitText !== this.#shownUnit) {
+      this.#shownUnit = unitText;
+      this.#unitChip.textContent = unitText;
+      this.#unitChip.title = `1 notch = ${unitText}`;
+    }
   }
 
   /** Turns the dial by whole notches, as a drag/wheel/key would. */
   turn(notches: number, { shift = false, ctrl = false } = {}) {
     if (notches === 0) return;
-    const step = ctrl ? 1 : (shift ? 10 : 1) / this.fps;
-    this.#angle = (this.#angle + notches * (ctrl ? 60 : shift ? 36 : 12)) % 360;
+    const resolved = this.#resolve({ shift, ctrl });
+    const step = this.#seconds(resolved);
+    this.#angle = (this.#angle + notches * DEGREES[resolved]) % 360;
     this.#rotor.style.transform = `rotate(${this.#angle}deg)`;
     this.#glow.animate([{ opacity: 0.9 }, { opacity: 0 }], { duration: 450, easing: "ease-out" });
 

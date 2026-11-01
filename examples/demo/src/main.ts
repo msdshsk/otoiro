@@ -37,7 +37,22 @@ applyPalette(root, DEFAULT_PALETTE);
 const player = await Player.connect();
 seekbar.player = player;
 document.querySelector("oto-transport")!.player = player;
-document.querySelector("oto-jog")!.player = player;
+const jog = document.querySelector("oto-jog")!;
+jog.player = player;
+jog.unitLabels = {
+  beat: "1拍",
+  bar: "1小節",
+  bars4: "4小節",
+  second: "1秒",
+  seconds10: "10秒",
+  frame: "1フレーム",
+  frames10: "10フレーム",
+  seconds: "{s}秒",
+};
+const highlightButton = $<HTMLButtonElement>("highlight");
+$("prev-section").addEventListener("click", () => seekbar.previousSection());
+$("next-section").addEventListener("click", () => seekbar.nextSection());
+highlightButton.addEventListener("click", () => seekbar.jumpToHighlight());
 
 let current = 0;
 let coverUrl: string | null = null;
@@ -77,6 +92,7 @@ async function describe(path: string) {
     title.textContent = info.title ?? fileName(path);
     artist.textContent = [info.artist ?? info.albumArtist, info.album, info.year].filter(Boolean).join(" · ");
     renderChips(info);
+    jog.bpm = info.bpm;
     return info;
   });
 
@@ -98,6 +114,7 @@ async function describe(path: string) {
   const waveform = await getWaveform(path);
   if (stale()) return;
   seekbar.waveform = waveform;
+  highlightButton.disabled = waveform.highlight == null;
 
   const hasCover = await coverTask;
   if (stale() || hasCover) return;

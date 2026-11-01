@@ -123,4 +123,17 @@ body {
 .deck { display: flex; align-items: center; gap: 22px; }
 .deck-main { flex: 1; min-width: 0; display: grid; gap: 14px; }
 oto-jog { --oto-jog-size: 118px; flex: none; }
+.nav { display: flex; gap: 6px; margin-top: -4px; }
+.nav button {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  background: rgb(255 255 255 / 0.05);
+  color: rgb(245 245 247 / 0.85);
+  font: 600 11px/1.4 system-ui, "Segoe UI", "Yu Gothic UI", sans-serif;
+  cursor: pointer;
+}
+.nav button:hover { background: rgb(255 255 255 / 0.1); }
+.nav button.star { color: var(--oto-accent); border-color: color-mix(in srgb, var(--oto-accent) 45%, transparent); }
+.nav button:disabled { opacity: 0.35; cursor: default; }
 .error { margin: 0; color: #ff8080; font-size: 12px; }
