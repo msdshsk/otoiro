@@ -75,7 +75,7 @@ import { Player } from "./vendor/otoiro-ui.js";
 |---|---|
 | `<oto-seekbar>` | ホバーで時刻表示、ドラッグでプレビューして離した時点でシーク（Esc で取消）、←/→ で ±5 秒、PageUp/PageDown でセクション移動。`waveform` を渡すと波形表示に切り替わり、セクションの区切りと★（サビ）を表示する。`nextSection()` / `previousSection()` / `jumpToHighlight()` |
 | `<oto-transport>` | 再生／一時停止、経過時間／全体時間、音量 |
-| `<oto-jog>` | ジョグダイヤル。縦ドラッグ（10 px で 1 ノッチ）かホイールで回すと、その位置の音を短く鳴らしながら移動する。1 ノッチの単位は `unit`（`beat`＝既定 / `bar` / `section` / `second` / `frame`）。`section` は `sections` で渡した区切りへ移動する。拍は `bpm` から求め、不明なら 0.5 秒。Shift で一段粗く（拍→小節など）、Ctrl でフレーム単位。下のチップで単位を切り替え、`unitLabels` で表示文字列を変更できる。中央ボタンで再生／一時停止 |
+| `<oto-jog>` | ジョグダイヤル。縦ドラッグ（10 px で 1 ノッチ）かホイールで回すと、その位置の音を短く鳴らしながら移動する（ホイールは下で進む）。1 ノッチの単位は `unit`（`beat`＝既定 / `bar` / `section` / `second` / `frame`）。`section` は `sections` で渡した区切りへ移動する。拍は `bpm` から求め、不明なら 0.5 秒。Shift で一段粗く（拍→小節など）、Ctrl でフレーム単位。下のチップで単位を切り替え、`unitLabels` で表示文字列を変更できる。中央ボタンで再生／一時停止 |
 
 見た目は CSS 変数（`--oto-accent`, `--oto-accent-2`, `--oto-base`, `--oto-glow`, `--oto-track`, `--oto-wave-height` など）と `::part()` で変更できます。
 `applyPalette()` と `registerPaletteProperties()` を使うと、曲ごとの配色をアニメーション付きで切り替えられます。

@@ -156,7 +156,8 @@ export interface JogTurnDetail {
 /**
  * `<oto-jog>`: a jog wheel that scrubs the player audibly.
  *
- * - Drag vertically (up = forward, 10 px per notch, remainders carried) or use the wheel.
+ * - Drag vertically (up = forward, 10 px per notch, remainders carried) or use the wheel
+ *   (down = forward, like scrolling down a page).
  * - One notch moves by `unit`: a beat (default; needs `bpm`, otherwise 0.5 s), a bar
  *   (`beats-per-bar`, default 4), a second, or a frame at `fps` (default 30).
  *   Shift goes one step coarser (beat→bar, bar→4 bars, 1 s→10 s, 1→10 frames); Ctrl moves
@@ -435,7 +436,7 @@ export class OtoJog extends PlayerElement {
 
   #onPointerMove = (e: PointerEvent) => {
     if (this.#pointerId !== e.pointerId) return;
-    // Up is positive, like scrolling up. Carry the remainder so slow drags still add up.
+    // Up is positive. Carry the remainder so slow drags still add up.
     this.#carry += (this.#lastY - e.clientY) / PIXELS_PER_NOTCH;
     this.#lastY = e.clientY;
     const notches = Math.trunc(this.#carry);
@@ -454,15 +455,18 @@ export class OtoJog extends PlayerElement {
 
   #onWheel = (e: WheelEvent) => {
     e.preventDefault();
+    // Scrolling down moves forward, like reading down a page. Shift+wheel arrives as a
+    // horizontal scroll in Chromium, so fall back to deltaX.
+    const delta = e.deltaY !== 0 ? e.deltaY : e.deltaX;
     let notches: number;
     if (e.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
-      this.#wheelCarry += -e.deltaY / WHEEL_PIXELS_PER_NOTCH;
+      this.#wheelCarry += delta / WHEEL_PIXELS_PER_NOTCH;
       notches = Math.trunc(this.#wheelCarry);
       // A mouse wheel detent (~100 px) is always at least one notch.
-      if (notches === 0 && Math.abs(e.deltaY) >= WHEEL_PIXELS_PER_NOTCH) notches = -Math.sign(e.deltaY);
+      if (notches === 0 && Math.abs(delta) >= WHEEL_PIXELS_PER_NOTCH) notches = Math.sign(delta);
       this.#wheelCarry -= notches;
     } else {
-      notches = -Math.sign(e.deltaY);
+      notches = Math.sign(delta);
     }
     this.turn(notches, { shift: e.shiftKey, ctrl: e.ctrlKey });
   };
